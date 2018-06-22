@@ -63,7 +63,7 @@ def create_app(config=None, testing=False):
         app=app, config={'CACHE_TYPE': 'filesystem', 'CACHE_DIR': '/tmp'})
 
     app.register_blueprint(routes)
-    app.jinja_env.globals['momentjs'] = momentjs
+
     configure_logging()
 
     with app.app_context():
@@ -158,6 +158,7 @@ def create_app(config=None, testing=False):
             return {
                 'hostname': get_hostname(),
                 'navbar_color': configuration.get('webserver', 'NAVBAR_COLOR'),
+                'momentjs': momentjs
             }
 
         @app.teardown_appcontext
