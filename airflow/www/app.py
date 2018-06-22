@@ -32,6 +32,7 @@ from airflow import models, LoggingMixin
 from airflow.settings import Session
 
 from airflow.www.blueprints import routes
+from airflow.www.momentjs import momentjs
 from airflow.logging_config import configure_logging
 from airflow import jobs
 from airflow import settings
@@ -62,7 +63,7 @@ def create_app(config=None, testing=False):
         app=app, config={'CACHE_TYPE': 'filesystem', 'CACHE_DIR': '/tmp'})
 
     app.register_blueprint(routes)
-
+    app.jinja_env.globals['momentjs'] = momentjs
     configure_logging()
 
     with app.app_context():
