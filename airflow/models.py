@@ -66,6 +66,7 @@ from sqlalchemy_utc import UtcDateTime
 
 from croniter import croniter
 import six
+import pendulum
 
 from airflow import settings, utils
 from airflow.executors import GetDefaultExecutor, LocalExecutor
@@ -1792,8 +1793,7 @@ class TaskInstance(Base, LoggingMixin):
 
         prev_execution_date = task.dag.previous_schedule(self.execution_date)
         next_execution_date = task.dag.following_schedule(self.execution_date)
-        if task.dag.timezone:
-            import pendulum
+        if task.dag.timezone and task.dag.timezone != timezone.utc:
             prev_execution_date = pendulum.instance(prev_execution_date).in_tz(task.dag.timezone)
             next_execution_date = pendulum.instance(next_execution_date).in_tz(task.dag.timezone)
 
