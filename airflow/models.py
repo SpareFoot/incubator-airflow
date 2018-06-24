@@ -1792,6 +1792,10 @@ class TaskInstance(Base, LoggingMixin):
 
         prev_execution_date = task.dag.previous_schedule(self.execution_date)
         next_execution_date = task.dag.following_schedule(self.execution_date)
+        if task.dag.timezone:
+            import pendulum
+            prev_execution_date = pendulum.instance(prev_execution_date).in_tz(task.dag.timezone)
+            next_execution_date = pendulum.instance(next_execution_date).in_tz(task.dag.timezone)
 
         next_ds = None
         if next_execution_date:
