@@ -1786,10 +1786,13 @@ class TaskInstance(Base, LoggingMixin):
         if 'tables' in task.params:
             tables = task.params['tables']
 
-        ds = self.execution_date.strftime('%Y-%m-%d')
-        ts = self.execution_date.isoformat()
-        yesterday_ds = (self.execution_date - timedelta(1)).strftime('%Y-%m-%d')
-        tomorrow_ds = (self.execution_date + timedelta(1)).strftime('%Y-%m-%d')
+        execution_date = self.execution_date
+        if task.dag.timezone and task.dag.timezone != timezone.utc:
+            execution_date = pendulum.instance(execution_date).in_tz(task.dag.timezone)
+        ds = execution_date.strftime('%Y-%m-%d')
+        ts = execution_date.isoformat()
+        yesterday_ds = (execution_date - timedelta(1)).strftime('%Y-%m-%d')
+        tomorrow_ds = (execution_date + timedelta(1)).strftime('%Y-%m-%d')
 
         prev_execution_date = task.dag.previous_schedule(self.execution_date)
         next_execution_date = task.dag.following_schedule(self.execution_date)
@@ -1882,7 +1885,7 @@ class TaskInstance(Base, LoggingMixin):
             'end_date': ds,
             'dag_run': dag_run,
             'run_id': run_id,
-            'execution_date': self.execution_date,
+            'execution_date': execution_date,
             'prev_execution_date': prev_execution_date,
             'next_execution_date': next_execution_date,
             'latest_date': ds,
