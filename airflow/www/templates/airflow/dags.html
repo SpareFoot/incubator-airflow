@@ -100,10 +100,13 @@
                 <!-- Column 4: Dag Schedule -->
                 <td>
                     {% if dag_id in webserver_dags %}
-                  <a class="label label-default schedule {{ dag.dag_id }}" href="{{ url_for('dagrun.index_view') }}?flt2_dag_id_equals={{ dag.dag_id }}">
+                      {{ dag.timezone.name }}&nbsp;
+                    <a class="label label-default schedule {{ dag.dag_id }}" href="{{ url_for('dagrun.index_view') }}?flt2_dag_id_equals={{ dag.dag_id }}">
                         {{ dag.schedule_interval }}
                     </a>
+
                     {% endif %}
+
                 </td>
 
                 <!-- Column 5: Dag Owners -->
@@ -122,7 +125,7 @@
                     {% set last_run = dag.get_last_dagrun() %}
                     {% if last_run and last_run.execution_date %}
                       <a href="{{ url_for('airflow.graph', dag_id=dag.dag_id, execution_date=last_run.execution_date) }}">
-                        {{ last_run.execution_date.strftime("%Y-%m-%d %H:%M") }}
+                        {{ last_run.execution_date | tz_local }}
                       </a>
                       <span aria-hidden="true" id="statuses_info" title="Start Date: {{ last_run.start_date.strftime("%Y-%m-%d %H:%M") }}" class="glyphicon glyphicon-info-sign"></span>
                     {% endif %}

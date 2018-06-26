@@ -32,6 +32,7 @@ from airflow import models, LoggingMixin
 from airflow.settings import Session
 
 from airflow.www.blueprints import routes
+from airflow.www.momentjs import momentjs
 from airflow.logging_config import configure_logging
 from airflow import jobs
 from airflow import settings
@@ -157,7 +158,15 @@ def create_app(config=None, testing=False):
             return {
                 'hostname': get_hostname(),
                 'navbar_color': configuration.get('webserver', 'NAVBAR_COLOR'),
+                'momentjs': momentjs
             }
+
+        @app.template_filter()
+        def tz_local(dt):
+            """ add a filter to views so times can be localized from utc"""
+            return momentjs(dt).format('YYYY-MM-DD HH:mm')
+
+        app.jinja_env.filters['tz_local'] = tz_local
 
         @app.teardown_appcontext
         def shutdown_session(exception=None):

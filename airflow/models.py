@@ -66,6 +66,7 @@ from sqlalchemy_utc import UtcDateTime
 
 from croniter import croniter
 import six
+import pendulum
 
 from airflow import settings, utils
 from airflow.executors import GetDefaultExecutor, LocalExecutor
@@ -1786,13 +1787,21 @@ class TaskInstance(Base, LoggingMixin):
         if 'tables' in task.params:
             tables = task.params['tables']
 
-        ds = self.execution_date.strftime('%Y-%m-%d')
-        ts = self.execution_date.isoformat()
-        yesterday_ds = (self.execution_date - timedelta(1)).strftime('%Y-%m-%d')
-        tomorrow_ds = (self.execution_date + timedelta(1)).strftime('%Y-%m-%d')
+        execution_date = self.execution_date
+        if not task.dag.is_tz_utc:
+            execution_date = pendulum.instance(execution_date).in_tz(task.dag.timezone)
+        ds = execution_date.strftime('%Y-%m-%d')
+        ts = execution_date.isoformat()
+        yesterday_ds = (execution_date - timedelta(1)).strftime('%Y-%m-%d')
+        tomorrow_ds = (execution_date + timedelta(1)).strftime('%Y-%m-%d')
 
         prev_execution_date = task.dag.previous_schedule(self.execution_date)
         next_execution_date = task.dag.following_schedule(self.execution_date)
+        if not task.dag.is_tz_utc:
+            if prev_execution_date:
+                prev_execution_date = pendulum.instance(prev_execution_date).in_tz(task.dag.timezone)
+            if next_execution_date:
+                next_execution_date = pendulum.instance(next_execution_date).in_tz(task.dag.timezone)
 
         next_ds = None
         if next_execution_date:
@@ -1879,7 +1888,7 @@ class TaskInstance(Base, LoggingMixin):
             'end_date': ds,
             'dag_run': dag_run,
             'run_id': run_id,
-            'execution_date': self.execution_date,
+            'execution_date': execution_date,
             'prev_execution_date': prev_execution_date,
             'next_execution_date': next_execution_date,
             'latest_date': ds,
@@ -1898,6 +1907,8 @@ class TaskInstance(Base, LoggingMixin):
             },
             'inlets': task.inlets,
             'outlets': task.outlets,
+            'tz': task.dag.timezone.name,
+            'utc_execution_date': self.execution_date,
         }
 
     def overwrite_params_with_dag_run_conf(self, params, dag_run):
@@ -3505,6 +3516,14 @@ class DAG(BaseDag, LoggingMixin):
             DagModel.dag_id == self.dag_id)
         return qry.value('is_paused')
 
+    @property
+    def is_tz_utc(self):
+        """
+        Returns a boolean indicating whether this DAG is running in utc timezone.
+        Used for view logic
+        """
+        return self.timezone == timezone.utc
+
     @provide_session
     def handle_callback(self, dagrun, success=True, reason=None, session=None):
         """
@@ -4470,8 +4489,7 @@ class XCom(Base, LoggingMixin):
     id = Column(Integer, primary_key=True)
     key = Column(String(512))
     value = Column(LargeBinary)
-    timestamp = Column(
-        DateTime, default=timezone.utcnow, nullable=False)
+    timestamp = Column(UtcDateTime, default=timezone.utcnow, nullable=False)
     execution_date = Column(UtcDateTime, nullable=False)
 
     # source information
