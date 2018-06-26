@@ -211,7 +211,11 @@ div.square {
 .btn:active, .btn.active {
   box-shadow: inset 0 6px 6px rgba(0, 0, 0, 0.4);
 }
-
+/* used for localized times */
+.localtime {
+  text-decoration:underline dotted #000;
+  color: #0091a1;
+}
 .hll { background-color: #ffffcc }
 .c { color: #408080; font-style: italic } /* Comment */
 .err { border: 1px solid #FF0000 } /* Error */

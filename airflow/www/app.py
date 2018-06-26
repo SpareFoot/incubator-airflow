@@ -161,6 +161,13 @@ def create_app(config=None, testing=False):
                 'momentjs': momentjs
             }
 
+        @app.template_filter()
+        def tz_local(dt):
+            """ add a filter to views so times can be localized from utc"""
+            return momentjs(dt).format('YYYY-MM-DD HH:mm')
+
+        app.jinja_env.filters['tz_local'] = tz_local
+
         @app.teardown_appcontext
         def shutdown_session(exception=None):
             settings.Session.remove()

@@ -1787,7 +1787,7 @@ class TaskInstance(Base, LoggingMixin):
             tables = task.params['tables']
 
         execution_date = self.execution_date
-        if task.dag.timezone and task.dag.timezone != timezone.utc:
+        if not task.dag.is_tz_utc:
             execution_date = pendulum.instance(execution_date).in_tz(task.dag.timezone)
         ds = execution_date.strftime('%Y-%m-%d')
         ts = execution_date.isoformat()
@@ -1796,7 +1796,7 @@ class TaskInstance(Base, LoggingMixin):
 
         prev_execution_date = task.dag.previous_schedule(self.execution_date)
         next_execution_date = task.dag.following_schedule(self.execution_date)
-        if task.dag.timezone and task.dag.timezone != timezone.utc:
+        if not task.dag.is_tz_utc:
             if prev_execution_date:
                 prev_execution_date = pendulum.instance(prev_execution_date).in_tz(task.dag.timezone)
             if next_execution_date:
@@ -3508,6 +3508,14 @@ class DAG(BaseDag, LoggingMixin):
         qry = session.query(DagModel).filter(
             DagModel.dag_id == self.dag_id)
         return qry.value('is_paused')
+
+    @property
+    def is_tz_utc(self):
+        """
+        Returns a boolean indicating whether this DAG is running in utc timezone.
+        Used for view logic
+        """
+        return self.timezone == timezone.utc
 
     @provide_session
     def handle_callback(self, dagrun, success=True, reason=None, session=None):

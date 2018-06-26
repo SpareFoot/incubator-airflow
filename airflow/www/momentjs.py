@@ -1,20 +1,23 @@
+from datetime import datetime
 from jinja2 import Markup
-
+import pendulum
+import six
+from airflow.utils.timezone import utc
 
 class momentjs(object):
     def __init__(self, timestamp):
         self.timestamp = timestamp
+        if not isinstance(timestamp, pendulum.Pendulum):
+            if isinstance(timestamp, datetime):
+                self.timestamp = pendulum.instance(timestamp)
+            elif isinstance(timestamp, six.string_types):
+                self.timestamp = pendulum.parse(timestamp)
 
     def _render(self, format):
-        return Markup("<script>\ndocument.write(moment(\"%s\").%s);\n</script>" % (self.timestamp.strftime("%Y-%m-%dT%H:%M:%S Z"), format))
+        if not self.timestamp:
+            return None
+        return Markup("<script>document.write(\"<span class='localtime' title='localized time from %s UTC'>\" + dateFns.format(dateFns.parse('%s'), '%s') + \"</span>\" );</script>" % (self.timestamp.in_tz(utc).to_iso8601_string(), self.timestamp.to_iso8601_string(), format))
 
     def format(self, fmt=''):
-        if fmt:
-            return self._render("format('{}')".format(fmt))
-        return self._render("format()")
+        return self._render(fmt)
 
-    def calendar(self):
-        return self._render("calendar()")
-
-    def fromNow(self):
-        return self._render("fromNow()")
