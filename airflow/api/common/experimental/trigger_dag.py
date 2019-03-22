@@ -20,7 +20,7 @@
 import json
 
 from airflow.exceptions import DagRunAlreadyExists, DagNotFound
-from airflow.models import DagRun, DagBag
+from airflow.models import DagRun, DagBag, DagModel
 from airflow.utils import timezone
 from airflow.utils.state import State
 
@@ -59,7 +59,10 @@ def _trigger_dag(
 
     run_conf = None
     if conf:
-        run_conf = json.loads(conf)
+        if type(conf) is dict:
+            run_conf = conf
+        else:
+            run_conf = json.loads(conf)
 
     triggers = list()
     dags_to_trigger = list()
@@ -86,7 +89,10 @@ def trigger_dag(
         execution_date=None,
         replace_microseconds=True,
 ):
-    dagbag = DagBag()
+    dag_model = DagModel.get_current(dag_id)
+    if dag_model is None:
+        raise DagNotFound("Dag id {} not found in DagModel".format(dag_id))
+    dagbag = DagBag(dag_folder=dag_model.fileloc)
     dag_run = DagRun()
     triggers = _trigger_dag(
         dag_id=dag_id,

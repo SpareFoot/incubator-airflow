@@ -27,12 +27,12 @@ class SimpleHttpOperator(BaseOperator):
     """
     Calls an endpoint on an HTTP system to execute an action
 
-    :param http_conn_id: The connection to run the sensor against
-    :type http_conn_id: string
+    :param http_conn_id: The connection to run the operator against
+    :type http_conn_id: str
     :param endpoint: The relative part of the full url. (templated)
-    :type endpoint: string
+    :type endpoint: str
     :param method: The HTTP method to use, default = "POST"
-    :type method: string
+    :type method: str
     :param data: The data to pass. POST-data in POST/PUT and params
         in the URL for a GET request. (templated)
     :type data: For POST/PUT, depends on the content-type parameter,
@@ -46,6 +46,8 @@ class SimpleHttpOperator(BaseOperator):
         'requests' documentation (options to modify timeout, ssl, etc.)
     :type extra_options: A dictionary of options, where key is string and value
         depends on the option that's being modified.
+    :param log_response: Log the response (default: False)
+    :type log_response: bool
     """
 
     template_fields = ('endpoint', 'data',)
@@ -60,12 +62,9 @@ class SimpleHttpOperator(BaseOperator):
                  headers=None,
                  response_check=None,
                  extra_options=None,
-                 xcom_push=False,
-                 http_conn_id='http_default', *args, **kwargs):
-        """
-        If xcom_push is True, response of an HTTP request will also
-        be pushed to an XCom.
-        """
+                 http_conn_id='http_default',
+                 log_response=False,
+                 *args, **kwargs):
         super(SimpleHttpOperator, self).__init__(*args, **kwargs)
         self.http_conn_id = http_conn_id
         self.method = method
@@ -74,7 +73,9 @@ class SimpleHttpOperator(BaseOperator):
         self.data = data or {}
         self.response_check = response_check
         self.extra_options = extra_options or {}
-        self.xcom_push_flag = xcom_push
+        self.log_response = log_response
+        if kwargs.get('xcom_push') is not None:
+            raise AirflowException("'xcom_push' was deprecated, use 'BaseOperator.do_xcom_push' instead")
 
     def execute(self, context):
         http = HttpHook(self.method, http_conn_id=self.http_conn_id)
@@ -85,8 +86,9 @@ class SimpleHttpOperator(BaseOperator):
                             self.data,
                             self.headers,
                             self.extra_options)
+        if self.log_response:
+            self.log.info(response.text)
         if self.response_check:
             if not self.response_check(response):
                 raise AirflowException("Response check returned False.")
-        if self.xcom_push_flag:
-            return response.text
+        return response.text

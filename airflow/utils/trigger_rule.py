@@ -7,9 +7,9 @@
 # to you under the Apache License, Version 2.0 (the
 # "License"); you may not use this file except in compliance
 # with the License.  You may obtain a copy of the License at
-# 
+#
 #   http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing,
 # software distributed under the License is distributed on an
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -20,6 +20,7 @@
 from __future__ import unicode_literals
 
 from builtins import object
+from typing import Set
 
 
 class TriggerRule(object):
@@ -29,8 +30,10 @@ class TriggerRule(object):
     ONE_SUCCESS = 'one_success'
     ONE_FAILED = 'one_failed'
     DUMMY = 'dummy'
+    NONE_FAILED = 'none_failed'
 
-    _ALL_TRIGGER_RULES = {}
+    _ALL_TRIGGER_RULES = set()  # type: Set[str]
+
     @classmethod
     def is_valid(cls, trigger_rule):
         return trigger_rule in cls.all_triggers()

@@ -46,16 +46,26 @@ class Pod:
     :param envs: A dict containing the environment variables
     :type envs: dict
     :param cmds: The command to be run on the pod
-    :type cmds: list str
+    :type cmds: list[str]
     :param secrets: Secrets to be launched to the pod
-    :type secrets: list Secret
+    :type secrets: list[airflow.contrib.kubernetes.secret.Secret]
     :param result: The result that will be returned to the operator after
                    successful execution of the pod
     :type result: any
     :param image_pull_policy: Specify a policy to cache or always pull an image
     :type image_pull_policy: str
+    :param image_pull_secrets: Any image pull secrets to be given to the pod.
+                               If more than one secret is required, provide a
+                               comma separated list: secret_a,secret_b
+    :type image_pull_secrets: str
     :param affinity: A dict containing a group of affinity scheduling rules
     :type affinity: dict
+    :param hostnetwork: If True enable host networking on the pod
+    :type hostnetwork: bool
+    :param tolerations: A list of kubernetes tolerations
+    :type tolerations: list
+    :param security_context: A dict containing the security context for the pod
+    :type security_context: dict
     """
     def __init__(
             self,
@@ -77,7 +87,10 @@ class Pod:
             service_account_name=None,
             resources=None,
             annotations=None,
-            affinity=None
+            affinity=None,
+            hostnetwork=False,
+            tolerations=None,
+            security_context=None,
     ):
         self.image = image
         self.envs = envs or {}
@@ -89,7 +102,7 @@ class Pod:
         self.name = name
         self.volumes = volumes or []
         self.volume_mounts = volume_mounts or []
-        self.node_selectors = node_selectors or []
+        self.node_selectors = node_selectors or {}
         self.namespace = namespace
         self.image_pull_policy = image_pull_policy
         self.image_pull_secrets = image_pull_secrets
@@ -98,3 +111,6 @@ class Pod:
         self.resources = resources or Resources()
         self.annotations = annotations or {}
         self.affinity = affinity or {}
+        self.hostnetwork = hostnetwork or False
+        self.tolerations = tolerations or []
+        self.security_context = security_context

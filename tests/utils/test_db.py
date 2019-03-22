@@ -20,9 +20,8 @@
 import unittest
 
 from airflow.models import Base as airflow_base
-from flask_appbuilder.models.sqla import Base as fab_base
 
-from airflow.settings import engine, RBAC
+from airflow.settings import engine
 from alembic.autogenerate import compare_metadata
 from alembic.migration import MigrationContext
 from sqlalchemy import MetaData
@@ -31,13 +30,9 @@ from sqlalchemy import MetaData
 class DbTest(unittest.TestCase):
 
     def test_database_schema_and_sqlalchemy_model_are_in_sync(self):
-        # combine Airflow and Flask-AppBuilder (if rbac enabled) models
         all_meta_data = MetaData()
         for (table_name, table) in airflow_base.metadata.tables.items():
             all_meta_data._add_table(table_name, table.schema, table)
-        if RBAC:
-            for (table_name, table) in fab_base.metadata.tables.items():
-                all_meta_data._add_table(table_name, table.schema, table)
 
         # create diff between database schema and SQLAlchemy model
         mc = MigrationContext.configure(engine.connect())
@@ -45,27 +40,60 @@ class DbTest(unittest.TestCase):
 
         # known diffs to ignore
         ignores = [
-            # users.password is not part of User model,
-            # otherwise it would show up in (old) UI
-            lambda t: (t[0] == 'remove_column' and
-                       t[2] == 'users' and
-                       t[3].name == 'password'),
-            # ignore tables created by other tests
-            lambda t: (t[0] == 'remove_table' and
-                       t[1].name == 't'),
-            lambda t: (t[0] == 'remove_table' and
-                       t[1].name == 'test_airflow'),
-            lambda t: (t[0] == 'remove_table' and
-                       t[1].name == 'test_postgres_to_postgres'),
-            lambda t: (t[0] == 'remove_table' and
-                       t[1].name == 'test_mysql_to_mysql'),
             # ignore tables created by celery
             lambda t: (t[0] == 'remove_table' and
                        t[1].name == 'celery_taskmeta'),
             lambda t: (t[0] == 'remove_table' and
                        t[1].name == 'celery_tasksetmeta'),
+
+            # ignore indices created by celery
+            lambda t: (t[0] == 'remove_index' and
+                       t[1].name == 'task_id'),
+            lambda t: (t[0] == 'remove_index' and
+                       t[1].name == 'taskset_id'),
+
+            # Ignore all the fab tables
+            lambda t: (t[0] == 'remove_table' and
+                       t[1].name == 'ab_permission'),
+            lambda t: (t[0] == 'remove_table' and
+                       t[1].name == 'ab_register_user'),
+            lambda t: (t[0] == 'remove_table' and
+                       t[1].name == 'ab_role'),
+            lambda t: (t[0] == 'remove_table' and
+                       t[1].name == 'ab_permission_view'),
+            lambda t: (t[0] == 'remove_table' and
+                       t[1].name == 'ab_permission_view_role'),
+            lambda t: (t[0] == 'remove_table' and
+                       t[1].name == 'ab_user_role'),
+            lambda t: (t[0] == 'remove_table' and
+                       t[1].name == 'ab_user'),
+            lambda t: (t[0] == 'remove_table' and
+                       t[1].name == 'ab_view_menu'),
+
+            # Ignore all the fab indices
+            lambda t: (t[0] == 'remove_index' and
+                       t[1].name == 'permission_id'),
+            lambda t: (t[0] == 'remove_index' and
+                       t[1].name == 'name'),
+            lambda t: (t[0] == 'remove_index' and
+                       t[1].name == 'user_id'),
+            lambda t: (t[0] == 'remove_index' and
+                       t[1].name == 'username'),
+            lambda t: (t[0] == 'remove_index' and
+                       t[1].name == 'field_string'),
+            lambda t: (t[0] == 'remove_index' and
+                       t[1].name == 'email'),
+            lambda t: (t[0] == 'remove_index' and
+                       t[1].name == 'permission_view_id'),
+
+            # from test_security unit test
+            lambda t: (t[0] == 'remove_table' and
+                       t[1].name == 'some_model'),
         ]
         for ignore in ignores:
             diff = [d for d in diff if not ignore(d)]
 
-        self.assertFalse(diff, 'Database schema and SQLAlchemy model are not in sync')
+        self.assertFalse(
+            diff,
+            'Database schema and SQLAlchemy model are not in sync: ' + str(diff)
+        )

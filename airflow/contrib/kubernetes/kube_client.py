@@ -17,9 +17,21 @@
 from airflow.configuration import conf
 from six import PY2
 
+try:
+    from kubernetes import config, client
+    from kubernetes.client.rest import ApiException
+    has_kubernetes = True
+except ImportError as e:
+    # We need an exception class to be able to use it in ``except`` elsewhere
+    # in the code base
+    ApiException = BaseException
+    has_kubernetes = False
+    _import_err = e
+
 
 def _load_kube_config(in_cluster, cluster_context, config_file):
-    from kubernetes import config, client
+    if not has_kubernetes:
+        raise _import_err
     if in_cluster:
         config.load_incluster_config()
     else:
@@ -36,4 +48,9 @@ def _load_kube_config(in_cluster, cluster_context, config_file):
 def get_kube_client(in_cluster=conf.getboolean('kubernetes', 'in_cluster'),
                     cluster_context=None,
                     config_file=None):
+    if not in_cluster:
+        if cluster_context is None:
+            cluster_context = conf.get('kubernetes', 'cluster_context', fallback=None)
+        if config_file is None:
+            config_file = conf.get('kubernetes', 'config_file', fallback=None)
     return _load_kube_config(in_cluster, cluster_context, config_file)

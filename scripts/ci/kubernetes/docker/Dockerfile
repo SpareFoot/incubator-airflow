@@ -33,7 +33,6 @@ RUN apt-get update -y && apt-get install -y \
         unzip \
     && apt-get clean
 
-
 RUN pip install --upgrade pip
 
 # Since we install vanilla Airflow, we also want to have support for Postgres and Kubernetes
@@ -44,7 +43,7 @@ RUN pip install -U setuptools && \
 
 # install airflow
 COPY airflow.tar.gz /tmp/airflow.tar.gz
-RUN pip install /tmp/airflow.tar.gz
+RUN pip install --no-use-pep517 /tmp/airflow.tar.gz
 
 COPY airflow-test-env-init.sh /tmp/airflow-test-env-init.sh
 

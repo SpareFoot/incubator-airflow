@@ -7,9 +7,9 @@
 # to you under the Apache License, Version 2.0 (the
 # "License"); you may not use this file except in compliance
 # with the License.  You may obtain a copy of the License at
-# 
+#
 #   http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing,
 # software distributed under the License is distributed on an
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,7 +18,8 @@
 # under the License.
 
 import unittest
-from airflow.utils.decorators import apply_defaults
+
+from airflow.utils.decorators import apply_defaults, cached_property
 from airflow.exceptions import AirflowException
 
 
@@ -72,3 +73,29 @@ class ApplyDefaultTest(unittest.TestCase):
         default_args = {'random_params': True}
         with self.assertRaisesRegexp(AirflowException, 'Argument.*test_param.*required'):
             DummyClass(default_args=default_args)
+
+
+class FixtureClass:
+    @cached_property
+    def value(self):
+        """Fixture docstring"""
+        return 1, object()
+
+
+class FixtureSubClass(FixtureClass):
+    pass
+
+
+class CachedPropertyTest(unittest.TestCase):
+
+    def setUp(self):
+        self.test_obj = FixtureClass()
+        self.test_sub_obj = FixtureSubClass()
+
+    def test_cache_works(self):
+        self.assertIs(self.test_obj.value, self.test_obj.value)
+        self.assertIs(self.test_sub_obj.value, self.test_sub_obj.value)
+
+    def test_docstring(self):
+        self.assertEqual(FixtureClass.value.__doc__, "Fixture docstring")
+        self.assertEqual(FixtureSubClass.value.__doc__, "Fixture docstring")

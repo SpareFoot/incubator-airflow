@@ -17,12 +17,14 @@
 
 import json
 import time
+from typing import Tuple, Optional
 from airflow.utils.log.logging_mixin import LoggingMixin
 from airflow.utils.state import State
 from datetime import datetime as dt
+from airflow.contrib.kubernetes.pod import Pod
 from airflow.contrib.kubernetes.kubernetes_request_factory import \
     pod_request_factory as pod_factory
-from kubernetes import watch
+from kubernetes import watch, client
 from kubernetes.client.rest import ApiException
 from kubernetes.stream import stream as kubernetes_stream
 from airflow import AirflowException
@@ -59,8 +61,17 @@ class PodLauncher(LoggingMixin):
             raise
         return resp
 
+    def delete_pod(self, pod):
+        try:
+            self._client.delete_namespaced_pod(
+                pod.name, pod.namespace, body=client.V1DeleteOptions())
+        except ApiException as e:
+            # If the pod is already deleted
+            if e.status != 404:
+                raise
+
     def run_pod(self, pod, startup_timeout=120, get_logs=True):
-        # type: (Pod) -> (State, result)
+        # type: (Pod, int, bool) -> Tuple[State, Optional[str]]
         """
         Launches the pod synchronously and waits for completion.
         Args:
@@ -81,7 +92,7 @@ class PodLauncher(LoggingMixin):
         return self._monitor_pod(pod, get_logs)
 
     def _monitor_pod(self, pod, get_logs):
-        # type: (Pod) -> (State, content)
+        # type: (Pod, bool) -> Tuple[State, Optional[str]]
 
         if get_logs:
             logs = self._client.read_namespaced_pod_log(
@@ -104,7 +115,7 @@ class PodLauncher(LoggingMixin):
         while self.pod_is_running(pod):
             self.log.info('Pod %s has state %s', pod.name, State.RUNNING)
             time.sleep(2)
-        return (self._task_status(self.read_pod(pod)), result)
+        return self._task_status(self.read_pod(pod)), result
 
     def _task_status(self, event):
         self.log.info(
@@ -154,7 +165,7 @@ class PodLauncher(LoggingMixin):
 
     def _exec_pod_command(self, resp, command):
         if resp.is_open():
-            self.log.info('Running command... %s\n' % command)
+            self.log.info('Running command... %s\n', command)
             resp.write_stdin(command + '\n')
             while resp.is_open():
                 resp.update(timeout=1)

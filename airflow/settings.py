@@ -27,7 +27,8 @@ import logging
 import os
 import pendulum
 
-from sqlalchemy import create_engine
+
+from sqlalchemy import create_engine, exc
 from sqlalchemy.orm import scoped_session, sessionmaker
 from sqlalchemy.pool import NullPool
 
@@ -37,7 +38,6 @@ from airflow.utils.sqlalchemy import setup_event_handlers
 
 log = logging.getLogger(__name__)
 
-RBAC = conf.getboolean('webserver', 'rbac')
 
 TIMEZONE = pendulum.timezone('UTC')
 try:
@@ -46,49 +46,18 @@ try:
         TIMEZONE = pendulum.local_timezone()
     else:
         TIMEZONE = pendulum.timezone(tz)
-except:
+except Exception:
     pass
 log.info("Configured default timezone %s" % TIMEZONE)
 
 
-class DummyStatsLogger(object):
-    @classmethod
-    def incr(cls, stat, count=1, rate=1):
-        pass
-
-    @classmethod
-    def decr(cls, stat, count=1, rate=1):
-        pass
-
-    @classmethod
-    def gauge(cls, stat, value, rate=1, delta=False):
-        pass
-
-    @classmethod
-    def timing(cls, stat, dt):
-        pass
-
-
-Stats = DummyStatsLogger
-
-if conf.getboolean('scheduler', 'statsd_on'):
-    from statsd import StatsClient
-
-    statsd = StatsClient(
-        host=conf.get('scheduler', 'statsd_host'),
-        port=conf.getint('scheduler', 'statsd_port'),
-        prefix=conf.get('scheduler', 'statsd_prefix'))
-    Stats = statsd
-else:
-    Stats = DummyStatsLogger
-
-HEADER = """\
-  ____________       _____________
- ____    |__( )_________  __/__  /________      __
-____  /| |_  /__  ___/_  /_ __  /_  __ \_ | /| / /
-___  ___ |  / _  /   _  __/ _  / / /_/ /_ |/ |/ /
- _/_/  |_/_/  /_/    /_/    /_/  \____/____/|__/
- """
+HEADER = '\n'.join([
+    r'  ____________       _____________',
+    r' ____    |__( )_________  __/__  /________      __',
+    r'____  /| |_  /__  ___/_  /_ __  /_  __ \_ | /| / /',
+    r'___  ___ |  / _  /   _  __/ _  / / /_/ /_ |/ |/ /',
+    r' _/_/  |_/_/  /_/    /_/    /_/  \____/____/|__/',
+])
 
 LOGGING_LEVEL = logging.INFO
 
@@ -153,7 +122,7 @@ def configure_orm(disable_connection_pool=False):
         engine_args['poolclass'] = NullPool
         log.debug("settings.configure_orm(): Using NullPool")
     elif 'sqlite' not in SQL_ALCHEMY_CONN:
-        # Engine args not supported by sqlite.
+        # Pool size engine args not supported by sqlite.
         # If no config value is defined for the pool size, select a reasonable value.
         # 0 means no limit, which could lead to exceeding the Database connection limit.
         try:
@@ -170,17 +139,27 @@ def configure_orm(disable_connection_pool=False):
         except conf.AirflowConfigException:
             pool_recycle = 1800
 
-        log.info("setting.configure_orm(): Using pool settings. pool_size={}, "
-                 "pool_recycle={}".format(pool_size, pool_recycle))
+        log.info("settings.configure_orm(): Using pool settings. pool_size={}, "
+                 "pool_recycle={}, pid={}".format(pool_size, pool_recycle, os.getpid()))
         engine_args['pool_size'] = pool_size
         engine_args['pool_recycle'] = pool_recycle
+
+    # Allow the user to specify an encoding for their DB otherwise default
+    # to utf-8 so jobs & users with non-latin1 characters can still use
+    # us.
+    engine_args['encoding'] = conf.get('core', 'SQL_ENGINE_ENCODING', fallback='utf-8')
+    # For Python2 we get back a newstr and need a str
+    engine_args['encoding'] = engine_args['encoding'].__str__()
 
     engine = create_engine(SQL_ALCHEMY_CONN, **engine_args)
     reconnect_timeout = conf.getint('core', 'SQL_ALCHEMY_RECONNECT_TIMEOUT')
     setup_event_handlers(engine, reconnect_timeout)
 
     Session = scoped_session(
-        sessionmaker(autocommit=False, autoflush=False, bind=engine))
+        sessionmaker(autocommit=False,
+                     autoflush=False,
+                     bind=engine,
+                     expire_on_commit=False))
 
 
 def dispose_orm():
@@ -211,22 +190,39 @@ def configure_adapters():
         pass
 
 
+def validate_session():
+    worker_precheck = conf.getboolean('core', 'worker_precheck', fallback=False)
+    if not worker_precheck:
+        return True
+    else:
+        check_session = sessionmaker(bind=engine)
+        session = check_session()
+        try:
+            session.execute("select 1")
+            conn_status = True
+        except exc.DBAPIError as err:
+            log.error(err)
+            conn_status = False
+        session.close()
+        return conn_status
+
+
 def configure_action_logging():
     """
     Any additional configuration (register callback) for airflow.utils.action_loggers
     module
-    :return: None
+    :rtype: None
     """
     pass
 
 
 try:
-    from airflow_local_settings import *
+    from airflow_local_settings import *  # noqa F403 F401
     log.info("Loaded airflow_local_settings.")
-except:
+except Exception:
     pass
 
-configure_logging()
+logging_class_path = configure_logging()
 configure_vars()
 configure_adapters()
 # The webservers import this file from models.py with the default settings.
